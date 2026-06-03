@@ -1,0 +1,39 @@
+# Arquivos de dados sensíveis (exportações do ERP)
+input/*.tsv
+input/*.txt
+input/*.xlsx
+input/*.xls
+input/*.csv
+!input/.gitkeep
+
+# Saídas geradas
+output/*.xlsx
+output/*.xls
+output/*.pdf
+!output/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.Python
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporários
+*.tmp
+*.bak
+*.log

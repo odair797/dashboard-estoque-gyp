@@ -1,0 +1,2 @@
+REPO_URL=https://github.com/odair797/dashboard-estoque-gyp.git
+PAGES_URL=https://odair797.github.io/dashboard-estoque-gyp/Dashboard_Estoque_GYP.html
