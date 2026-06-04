@@ -65,16 +65,17 @@ def criticidade(d):
 df['Criticidade'] = df['Dias p/ Vencer'].apply(criticidade)
 
 def classificar_linha(nome):
-    n = str(nome).strip().upper()
-    linhas = [('KITS',['KIT']),('FASHION GOLD',['FASHION GOLD','FG']),
-              ('YBERA FG',['YBERA FG']),('MIRRA',['MIRRA']),
-              ('VELLO',['VELLO']),('BOTULINICA',['BOTULI']),
-              ('DETOX',['DETOX']),('DISCOVERY',['DISCOVERY','STEMCELL']),
-              ('HIDRATACAO',['HIDRAT']),('NUTRICAO',['NUTRI']),
-              ('COLORACAO',['COLOR']),('TRATAMENTO',['TRAT'])]
-    for linha, kws in linhas:
-        if any(k in n for k in kws): return linha
-    return 'OUTROS'
+    # A linha comercial e o prefixo do nome do produto antes de " - ".
+    # Ex.: "TERRA COCO - SHAMPOO 1L" -> "TERRA COCO".
+    # Produtos sem " - " que sejam kits viram "KITS"; senao usam o nome todo.
+    # Assim todo SKU recebe a sua linha real e nada fica em "OUTROS".
+    n = str(nome).strip()
+    if ' - ' in n:
+        return n.split(' - ', 1)[0].upper().strip()
+    u = n.upper()
+    if 'KIT' in u:
+        return 'KITS'
+    return u
 
 df['Linha'] = df.apply(lambda r: classificar_linha(r['Produto']) if r['Familia']=='4 - Produto Acabado' else '', axis=1)
 

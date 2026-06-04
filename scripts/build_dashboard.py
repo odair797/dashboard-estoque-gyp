@@ -2,9 +2,6 @@
 """
 Atualiza o bloco DATA dentro de Dashboard_Estoque_GYP.html
 com os dados mais recentes processados pelo processar_estoque.py.
-
-Lê os CSVs de %TEMP%/gyp_estoque e gera o JSON DATA, substituindo
-no HTML existente. Não altera CSS/JS — apenas os dados.
 """
 import sys
 try:
@@ -23,24 +20,26 @@ HTML_PATH  = os.path.join(ROOT, 'Dashboard_Estoque_GYP.html')
 TMP        = os.environ.get('GYP_TMP', os.path.join(tempfile.gettempdir(),'gyp_estoque'))
 
 if not os.path.exists(HTML_PATH):
-    print(f"AVISO: {HTML_PATH} não existe - dashboard sera pulado.")
+    print("AVISO: HTML nao existe - dashboard sera pulado.")
     raise SystemExit(0)
 
-print("Carregando CSVs intermediários...")
+print("Carregando CSVs intermediarios...")
 estoque = pd.read_csv(os.path.join(TMP,'estoque_completo.csv'))
 estoque['Data de Vencimento'] = pd.to_datetime(estoque['Data de Vencimento'], errors='coerce')
 
 TODAY = datetime.today().replace(hour=0,minute=0,second=0,microsecond=0)
 
-# ── Limpar nome de família (remover prefixo "1 - ") ─────────────
+# Limpar nome de familia (remover prefixo "1 - "); MP com acento p/ casar com o front-end
 def fam_clean(f):
     s = str(f)
     if ' - ' in s:
-        return s.split(' - ',1)[1]
+        s = s.split(' - ', 1)[1]
+    if s.strip().lower() == 'materia prima':
+        return 'Matéria Prima'
     return s
 estoque['Familia_Clean'] = estoque['Familia'].apply(fam_clean)
 
-# ── KPIs ─────────────────────────────────────────────────────────
+# KPIs
 crit  = int(((estoque['Dias p/ Vencer']>=0) & (estoque['Dias p/ Vencer']<=60)).sum())
 aten  = int(((estoque['Dias p/ Vencer']>60) & (estoque['Dias p/ Vencer']<=120)).sum())
 ok    = int(((estoque['Dias p/ Vencer']>120) & (estoque['Dias p/ Vencer']<=183)).sum())
@@ -57,13 +56,16 @@ kpis = {
     'data_ref': TODAY.strftime('%d/%m/%Y'),
 }
 
-# ── Família totais ──────────────────────────────────────────────
+# Familia totais (Materia Prima ja vem em kg via Estoque (UN))
 fam_grp = estoque.groupby('Familia_Clean')['Estoque (UN)'].sum().reset_index()
 fam_grp = fam_grp.rename(columns={'Familia_Clean':'familia','Estoque (UN)':'estoque'})
 fam_grp = fam_grp.sort_values('estoque', ascending=False)
 familia = fam_grp.to_dict('records')
 
-# ── Próximos de Vencer (<=183d, >=0d) ───────────────────────────
+def unidade_fam(fam):
+    return 'kg' if str(fam) == 'Matéria Prima' else 'un'
+
+# Proximos de Vencer (<=183d, >=0d)
 prox = estoque[(estoque['Dias p/ Vencer']>=0) & (estoque['Dias p/ Vencer']<=183)].copy()
 
 def urg(d):
@@ -77,6 +79,7 @@ prox_tab = [{
     'sku': str(r['Código do Produto']),
     'produto': str(r['Produto']),
     'familia': fam_clean(r['Familia']),
+    'unidade': unidade_fam(fam_clean(r['Familia'])),
     'lote': str(r.get('Lote','')),
     'lote_ind': str(r.get('Lote Indústria','')),
     'estoque': float(r['Estoque (UN)']),
@@ -85,7 +88,6 @@ prox_tab = [{
     'urgencia': r['urgencia'],
 } for _, r in prox.iterrows()]
 
-# Para chart de família × urgência
 prox_chart_rows = prox.groupby(['Familia_Clean','urgencia'])['Estoque (UN)'].sum().reset_index()
 prox_chart = [{
     'familia': r['Familia_Clean'],
@@ -93,7 +95,7 @@ prox_chart = [{
     'estoque': float(r['Estoque (UN)'])
 } for _, r in prox_chart_rows.iterrows()]
 
-# ── Vencidos fora do setor ───────────────────────────────────────
+# Vencidos fora do setor
 SETOR_VEN = '[1102] GYP - VENCIDOS (G9)'
 venc_df = estoque[(estoque['Dias p/ Vencer']<0) & (estoque.get('Setor','')!=SETOR_VEN)].copy()
 venc_fora = [{
@@ -101,6 +103,7 @@ venc_fora = [{
     'sku': str(r['Código do Produto']),
     'produto': str(r['Produto']),
     'familia': fam_clean(r['Familia']),
+    'unidade': unidade_fam(fam_clean(r['Familia'])),
     'linha': str(r.get('Linha','')),
     'setor': str(r.get('Setor','')),
     'lote': str(r.get('Lote','')),
@@ -109,12 +112,11 @@ venc_fora = [{
     'dias': int(r['Dias p/ Vencer']) if pd.notna(r['Dias p/ Vencer']) else None,
 } for _, r in venc_df.iterrows()]
 
-# Vencidos por família (chart + resumo)
 venc_por_familia_df = venc_df.groupby('Familia_Clean')['Estoque (UN)'].sum().reset_index()
 venc_por_familia_df = venc_por_familia_df.sort_values('Estoque (UN)', ascending=False)
 venc_por_familia = [{'familia':r['Familia_Clean'],'estoque':float(r['Estoque (UN)'])} for _,r in venc_por_familia_df.iterrows()]
 
-# ── Produto Acabado (compilado por linha) ───────────────────────
+# Produto Acabado (compilado por linha)
 pa_df = estoque[estoque['Familia']=='4 - Produto Acabado'].copy()
 pa_grp = pa_df.groupby(['Código do Produto','Produto','Linha']).agg(
     estoque=('Estoque (UN)','sum'),
@@ -129,17 +131,17 @@ pa_list = [{
     'menor_venc': r['menor_venc_str'],
 } for _, r in pa_grp.iterrows()]
 
-# Linha totais
 lt_df = pa_grp.groupby('Linha')['estoque'].sum().reset_index()
 lt_df = lt_df.sort_values('estoque', ascending=False)
 linha_totais = [{'linha': str(r['Linha']) if str(r['Linha']) else 'OUTROS', 'total': float(r['estoque'])} for _, r in lt_df.iterrows()]
 
-# ── Saldo Completo (para botão Exportar Saldo Completo) ─────────
+# Saldo Completo
 saldo_completo = [{
     'local': str(r.get('Local','')),
     'sku': str(r['Código do Produto']),
     'produto': str(r['Produto']),
     'familia': fam_clean(r['Familia']),
+    'unidade': unidade_fam(fam_clean(r['Familia'])),
     'linha': str(r.get('Linha','')),
     'setor': str(r.get('Setor','')),
     'lote': str(r.get('Lote','')),
@@ -151,7 +153,6 @@ saldo_completo = [{
                  else ('Vencido' if pd.notna(r['Dias p/ Vencer']) else 'Longa Validade')),
 } for _, r in estoque.iterrows()]
 
-# ── Monta DATA final ────────────────────────────────────────────
 DATA = {
     'kpis': kpis,
     'familia': familia,
@@ -165,31 +166,50 @@ DATA = {
 }
 
 data_str = json.dumps(DATA, ensure_ascii=False, separators=(',',':'))
-print(f"DATA gerado: {len(data_str):,} chars")
+print("DATA gerado: " + format(len(data_str), ',') + " chars")
 
-# ── Substituir bloco DATA no HTML ───────────────────────────────
 print("Atualizando HTML...")
 with open(HTML_PATH, 'r', encoding='utf-8') as f:
     html = f.read()
 
+# Seguranca: nao sobrescrever um HTML bom com uma leitura truncada
+if '</html>' not in html or 'const DATA' not in html:
+    print("ERRO: HTML existente parece truncado/invalido (sem </html> ou DATA).")
+    print("      Abortando para nao danificar o dashboard.")
+    raise SystemExit(1)
+
 new_html, n = re.subn(
     r'const DATA\s*=\s*\{.*?\};',
-    f'const DATA = {data_str};',
+    'const DATA = ' + data_str + ';',
     html, count=1, flags=re.DOTALL
 )
 if n == 0:
-    print("ERRO: bloco DATA não encontrado no HTML.")
+    print("ERRO: bloco DATA nao encontrado no HTML.")
     raise SystemExit(1)
 
-# Atualizar referência de data nos badges
-new_html = re.sub(
-    r'Ref\.\s*\d{2}/\d{2}/\d{4}',
-    f"Ref. {kpis['data_ref']}",
-    new_html
-)
+new_html = re.sub(r'Ref\.\s*\d{2}/\d{2}/\d{4}', "Ref. " + kpis['data_ref'], new_html)
 
-with open(HTML_PATH, 'w', encoding='utf-8') as f:
-    f.write(new_html)
+# Atualiza o selo "NN SKUs - NN linhas" da aba Compilado PA
+_n_sku = len({x['sku'] for x in pa_list})
+_n_lin = len({x['linha'] for x in pa_list})
+new_html = re.sub(r'\d+\s*SKUs\s*\u00b7\s*\d+\s*linhas',
+                  str(_n_sku) + ' SKUs \u00b7 ' + str(_n_lin) + ' linhas',
+                  new_html)
 
-print(f"[OK] Dashboard atualizado: {HTML_PATH}")
-print(f"  Famílias: {len(familia)} | Próximos: {len(prox_tab)} | Vencidos: {len(venc_fora)} | PA: {len(pa_list)} | Saldo total: {len(saldo_completo)}")
+import tempfile as _tf, shutil as _sh
+_dir=os.path.dirname(HTML_PATH)
+for _try in range(3):
+    _fd,_tmpf=_tf.mkstemp(suffix='.html', dir=_dir)
+    with os.fdopen(_fd,'w',encoding='utf-8') as f:
+        f.write(new_html)
+    _ok=False
+    with open(_tmpf,'r',encoding='utf-8') as f:
+        _chk=f.read()
+    if '</html>' in _chk and len(_chk)==len(new_html):
+        _sh.move(_tmpf, HTML_PATH); _ok=True; break
+    os.remove(_tmpf)
+if not _ok:
+    print("ERRO: falha ao gravar HTML integro apos 3 tentativas."); raise SystemExit(1)
+
+print("[OK] Dashboard atualizado.")
+print("  Familias: " + str(len(familia)) + " | Linhas PA: " + str(len({x['linha'] for x in pa_list})))
