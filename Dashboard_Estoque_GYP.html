@@ -101,7 +101,7 @@ tr:last-child td{border-bottom:none}
 <div class="header">
   <div class="header-left"><div class="logo-y" aria-label="Ybera"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Y"><rect width="100" height="100" fill="currentColor"/><text x="50" y="78" text-anchor="middle" font-family="'Bodoni 72','Bodoni MT','Didot','Times New Roman',serif" font-style="italic" font-weight="300" font-size="86" fill="#FFFFFF">Y</text></svg></div><div><h1>YBERA<span class="group"> Group</span></h1><p>Saldo de Estoque</p></div></div>
   <div>
-    <div class="data-ref">Referência: <span>01/06/2026</span></div>
+    <div class="data-ref">Referência: <span>04/06/2026 23:34</span></div>
     <div class="data-ref" style="margin-top:4px">3,940 registros · 776 SKUs</div>
   </div>
 </div>
@@ -116,7 +116,7 @@ tr:last-child td{border-bottom:none}
 <section id="resumo" class="section active">
   <div class="section-header">
     <div class="section-title">Resumo Executivo</div>
-    <div class="badge">Ref. 04/06/2026</div>
+    <div class="badge">Ref. 04/06/2026 23:34</div>
   </div>
   <div class="subgrid-title">Saldo total por família</div>
   <div class="kpi-grid" id="familiaCards" style="margin-bottom:26px"></div>
@@ -278,13 +278,13 @@ const URG_COLOR = {'Crítico':RED,'Atenção':ORANGE,'OK':GREEN};
 // Estoque Ativo por Família (doughnut)
 new Chart(document.getElementById('chartFamilia'),{type:'doughnut',
  data:{labels:DATA.familia.map(d=>d.familia),datasets:[{data:DATA.familia.map(d=>d.estoque),backgroundColor:COLORS}]},
- options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+ options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},datalabels:{display:false}}}});
 
 // Urgência (doughnut)
 (function(){const k=DATA.kpis||{};const el=document.getElementById('chartUrgencia');if(!el)return;
  new Chart(el,{type:'doughnut',
  data:{labels:['Crítico ≤60d','Atenção 61-120d','OK 121-183d'],datasets:[{data:[k.critico_count,k.atencao_count,k.ok_count],backgroundColor:[RED,ORANGE,GREEN]}]},
- options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});})();
+ options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},datalabels:{display:false}}}});})();
 
 // Próximo de Vencer por Família e Urgência (barras empilhadas)
 (function(){const el=document.getElementById('chartProxFamilia');if(!el)return;
@@ -293,7 +293,7 @@ new Chart(document.getElementById('chartFamilia'),{type:'doughnut',
  const ds=urgs.map(u=>({label:u,backgroundColor:URG_COLOR[u],
    data:fams.map(f=>{const m=DATA.prox_chart.find(x=>x.familia===f&&x.urgencia===u);return m?m.estoque:0;})}));
  new Chart(el,{type:'bar',data:{labels:fams,datasets:ds},
- options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{display:false}}},plugins:{legend:{position:'bottom'}}}});})();
+ options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{display:false}}},plugins:{legend:{position:'bottom'},datalabels:{color:'#fff',backgroundColor:null,borderColor:null,borderWidth:0,padding:0,font:{weight:'700',size:12},textShadowColor:'rgba(0,0,0,0.25)',textShadowBlur:3,formatter:_fmtDL}}}});})();
 
 // Vencidos por Família (barras)
 (function(){const el=document.getElementById('chartVencFamilia');if(!el)return;const v=DATA.venc_por_familia||[];
@@ -303,7 +303,7 @@ new Chart(document.getElementById('chartFamilia'),{type:'doughnut',
 // Estoque por Linha Comercial (barras horizontais)
 (function(){const el=document.getElementById('chartLinha');if(!el)return;const l=DATA.linha_totais||[];
  new Chart(el,{type:'bar',data:{labels:l.map(d=>d.linha),datasets:[{label:'Estoque',data:l.map(d=>d.total),backgroundColor:COLORS}]},
- options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:54}},scales:{x:{grid:{display:false}},y:{grid:{display:false}}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'end',offset:4,color:'#3B3328',font:{weight:'600',size:10},backgroundColor:null,borderWidth:0,padding:0,formatter:function(v){var n=(typeof v==='object'&&v)?(v.x!=null?v.x:v.y):v;n=Number(n)||0;if(!n)return '';if(n>=1e6)return (n/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mi';if(n>=1e3)return (n/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1})+' mil';return n.toLocaleString('pt-BR');}}}}});})();
+ options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:78}},scales:{x:{grid:{display:false}},y:{grid:{display:false}}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'end',offset:4,color:'#3B3328',font:{weight:'600',size:10},backgroundColor:null,borderWidth:0,padding:0,formatter:function(v){var n=(typeof v==='object'&&v)?(v.x!=null?v.x:v.y):v;n=Number(n)||0;if(!n)return '';return n.toLocaleString('pt-BR')+' un';}}}}});})();
 
 // ===== Aba Próximos de Vencer (tabela + filtros) =====
 (function(){
@@ -356,3 +356,4 @@ new Chart(document.getElementById('chartFamilia'),{type:'doughnut',
 </script>
 </body>
 </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 

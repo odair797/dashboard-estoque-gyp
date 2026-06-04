@@ -53,7 +53,7 @@ kpis = {
     'critico_count': crit,
     'atencao_count': aten,
     'ok_count': ok,
-    'data_ref': TODAY.strftime('%d/%m/%Y'),
+    'data_ref': datetime.now().strftime('%d/%m/%Y %H:%M'),
 }
 
 # Familia totais (Materia Prima ja vem em kg via Estoque (UN))
@@ -187,7 +187,13 @@ if n == 0:
     print("ERRO: bloco DATA nao encontrado no HTML.")
     raise SystemExit(1)
 
-new_html = re.sub(r'Ref\.\s*\d{2}/\d{2}/\d{4}', "Ref. " + kpis['data_ref'], new_html)
+_ref = kpis['data_ref']
+new_html = re.sub(r'Ref\.\s*\d{2}/\d{2}/\d{4}(\s+\d{2}:\d{2})?', "Ref. " + _ref, new_html, count=1)
+new_html = re.sub(r'(Refer\u00eancia: <span>)[^<]*(</span>)', r'\g<1>' + _ref + r'\g<2>', new_html, count=1)
+def _milhar(n):
+    return format(int(n), ',').replace(',', '.')
+_cont = _milhar(kpis['total_registros']) + ' registros \u00b7 ' + _milhar(kpis['total_skus']) + ' SKUs'
+new_html = re.sub(r'[\d.,]+ registros \u00b7 [\d.,]+ SKUs', _cont, new_html, count=1)
 
 # Atualiza o selo "NN SKUs - NN linhas" da aba Compilado PA
 _n_sku = len({x['sku'] for x in pa_list})
