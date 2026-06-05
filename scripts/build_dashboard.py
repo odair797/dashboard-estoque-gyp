@@ -257,9 +257,21 @@ function exportarSaldoCompleto() {
                 'Meses a Vencer':meses,'Criticidade':r.urgencia};
       }
     });
-    var ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, fam.nome);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length?rows:[{}]), fam.nome);
   });
+  // Aba Em Processo: 00000348=Finalizado, 00004569/00000349=Em Separação
+  var emProcesso = DATA.saldo_completo.filter(function(r){
+    return r.local==='00000348'||r.local==='00004569'||r.local==='00000349';
+  }).map(function(r){
+    var meses=(r.dias!==null&&r.dias!==undefined)?Math.round(r.dias/30*10)/10:'';
+    return {'Status':r.local==='00000348'?'Finalizado':'Em Separação',
+            'Local':r.local,'SKU':r.sku,'Descrição':r.produto,'Família':r.familia,
+            'Linha':r.linha,'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,
+            'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
+            'Meses a Vencer':meses,'Criticidade':r.urgencia};
+  });
+  emProcesso.sort(function(a,b){return a.Status.localeCompare(b.Status);});
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(emProcesso.length?emProcesso:[{}]), 'Em Processo');
   XLSX.writeFile(wb, 'Saldo_Completo_por_Familia.xlsx');
 }
 """
