@@ -7,7 +7,7 @@ input/*.csv
 !input/.gitkeep
 
 # Saídas geradas
-output/*.xlsx
+# output/*.xlsx  ← liberado: Excel disponível para download no GitHub
 output/*.xls
 output/*.pdf
 !output/.gitkeep

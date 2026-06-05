@@ -169,8 +169,13 @@ data_str = json.dumps(DATA, ensure_ascii=False, separators=(',',':'))
 print("DATA gerado: " + format(len(data_str), ',') + " chars")
 
 print("Atualizando HTML...")
-with open(HTML_PATH, 'r', encoding='utf-8') as f:
-    html = f.read()
+with open(HTML_PATH, 'rb') as f:
+    _raw = f.read()
+# Remove bytes nulos que corrompem o JavaScript no navegador
+if b'\x00' in _raw:
+    print("  Aviso: bytes nulos encontrados no template — removendo...")
+    _raw = _raw.replace(b'\x00', b'')
+html = _raw.decode('utf-8', errors='replace')
 
 # Seguranca: nao sobrescrever um HTML bom com uma leitura truncada
 if '</html>' not in html or 'const DATA' not in html:
@@ -188,7 +193,7 @@ if n == 0:
     raise SystemExit(1)
 
 _ref = kpis['data_ref']
-new_html = re.sub(r'Ref\.\s*\d{2}/\d{2}/\d{4}(\s+\d{2}:\d{2})?', "Ref. " + _ref, new_html, count=1)
+# Badge "Ref." removido do layout \u2014 linha abaixo mantida apenas para "Refer\u00eancia: <span>" se existir
 new_html = re.sub(r'(Refer\u00eancia: <span>)[^<]*(</span>)', r'\g<1>' + _ref + r'\g<2>', new_html, count=1)
 def _milhar(n):
     return format(int(n), ',').replace(',', '.')
@@ -201,6 +206,46 @@ _n_lin = len({x['linha'] for x in pa_list})
 new_html = re.sub(r'\d+\s*SKUs\s*\u00b7\s*\d+\s*linhas',
                   str(_n_sku) + ' SKUs \u00b7 ' + str(_n_lin) + ' linhas',
                   new_html)
+
+# Garantir que as funções de exportação Excel estão presentes
+_EXPORT_JS = """
+// ========== FUNÇÕES DE EXPORTAÇÃO EXCEL ==========
+function _xlsxDownload(rows, filename) {
+  var ws = XLSX.utils.json_to_sheet(rows);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Dados');
+  XLSX.writeFile(wb, filename);
+}
+function exportarExcel() {
+  var rows = DATA.prox_tab.map(function(r) {
+    return {'Local':r.local,'SKU':r.sku,'Produto':r.produto,'Família':r.familia,
+            'Lote':r.lote,'Lote Indústria':r.lote_ind,'Estoque':r.estoque,
+            'Vencimento':r.vencimento,'Dias p/ Vencer':r.dias,'Urgência':r.urgencia};
+  });
+  _xlsxDownload(rows, 'Proximos_Vencer.xlsx');
+}
+function exportarVencidos() {
+  var rows = DATA.venc_fora.map(function(r) {
+    return {'Local':r.local,'SKU':r.sku,'Produto':r.produto,'Família':r.familia,
+            'Setor Atual':r.setor,'Lote':r.lote,'Estoque':r.estoque,
+            'Vencimento':r.vencimento,'Dias Vencido':Math.abs(r.dias||0)};
+  });
+  _xlsxDownload(rows, 'Vencidos_Mover.xlsx');
+}
+function exportarSaldoCompleto() {
+  var rows = DATA.saldo_completo.map(function(r) {
+    return {'Local':r.local,'SKU':r.sku,'Produto':r.produto,'Família':r.familia,
+            'Unidade':r.unidade,'Linha':r.linha,'Setor':r.setor,'Lote':r.lote,
+            'Lote Indústria':r.lote_ind,'Estoque':r.estoque,
+            'Vencimento':r.vencimento,'Dias':r.dias,'Criticidade':r.urgencia};
+  });
+  _xlsxDownload(rows, 'Saldo_Completo.xlsx');
+}
+"""
+if 'function exportarExcel' not in new_html:
+    _ins = new_html.rfind('</script>')
+    if _ins >= 0:
+        new_html = new_html[:_ins] + _EXPORT_JS + new_html[_ins:]
 
 import tempfile as _tf, shutil as _sh
 _dir=os.path.dirname(HTML_PATH)

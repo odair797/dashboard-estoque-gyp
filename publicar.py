@@ -77,6 +77,10 @@ def main():
         run(['git', 'remote', 'set-url', 'origin', repo_url], capture_output=True)
 
     print(" Enviando para o GitHub...")
+    # Força inclusão do Excel mesmo que ainda esteja em cache do .gitignore
+    xlsx = os.path.join(ROOT, 'output', 'Analise_Estoque_GYP.xlsx')
+    if os.path.exists(xlsx):
+        run(['git', 'add', '-f', xlsx], capture_output=True)
     run(['git', 'add', '-A'], capture_output=True)
     st = run(['git', 'status', '--porcelain'], capture_output=True)
     if (st.stdout or '').strip():
