@@ -266,7 +266,7 @@ function exportarSaldoCompleto() {
     var meses=(r.dias!==null&&r.dias!==undefined)?Math.round(r.dias/30*10)/10:'';
     return {'Status':r.local==='00000348'?'Finalizado':'Em Separação',
             'Local':r.local,'SKU':r.sku,'Descrição':r.produto,'Família':r.familia,
-            'Linha':r.linha,'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,
+            'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,
             'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
             'Meses a Vencer':meses,'Criticidade':r.urgencia};
   });
