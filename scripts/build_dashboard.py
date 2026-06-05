@@ -233,13 +233,34 @@ function exportarVencidos() {
   _xlsxDownload(rows, 'Vencidos_Mover.xlsx');
 }
 function exportarSaldoCompleto() {
-  var rows = DATA.saldo_completo.map(function(r) {
-    return {'Local':r.local,'SKU':r.sku,'Produto':r.produto,'Família':r.familia,
-            'Unidade':r.unidade,'Linha':r.linha,'Setor':r.setor,'Lote':r.lote,
-            'Lote Indústria':r.lote_ind,'Estoque':r.estoque,
-            'Vencimento':r.vencimento,'Dias':r.dias,'Criticidade':r.urgencia};
+  var wb = XLSX.utils.book_new();
+  var familias = [
+    {key:'Produto Acabado', nome:'Produto Acabado', comLinha:true},
+    {key:'Matéria Prima',   nome:'Matéria Prima',   comLinha:false},
+    {key:'Embalagem',       nome:'Embalagem',        comLinha:false},
+    {key:'Granel',          nome:'Granel',           comLinha:false},
+    {key:'Apoio',           nome:'Apoio',            comLinha:false},
+  ];
+  familias.forEach(function(fam) {
+    var dados = DATA.saldo_completo.filter(function(r){ return r.familia === fam.key; });
+    var rows = dados.map(function(r) {
+      var meses = (r.dias !== null && r.dias !== undefined) ? Math.round(r.dias/30*10)/10 : '';
+      if (fam.comLinha) {
+        return {'Linha':r.linha,'SKU':r.sku,'Descrição':r.produto,
+                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,
+                'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
+                'Meses a Vencer':meses,'Criticidade':r.urgencia};
+      } else {
+        return {'SKU':r.sku,'Descrição':r.produto,
+                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,
+                'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
+                'Meses a Vencer':meses,'Criticidade':r.urgencia};
+      }
+    });
+    var ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, fam.nome);
   });
-  _xlsxDownload(rows, 'Saldo_Completo.xlsx');
+  XLSX.writeFile(wb, 'Saldo_Completo_por_Familia.xlsx');
 }
 """
 if 'function exportarExcel' not in new_html:

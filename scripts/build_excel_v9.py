@@ -97,10 +97,10 @@ def write_row(ws, row, valores, has_linha=False):
         c.font = Font(name='Calibri', size=9, bold=True, color=fg)
 
 # ── HEADERS PADRÃO ────────────────────────────────────────────────
-HDRS_FAM = ['SKU','Descrição','Quantidade','Lote','Local',
+HDRS_FAM = ['SKU','Descrição','Quantidade','Lote Indústria','Local',
             'Data de Vencimento','Dias a Vencer','Meses a Vencer','Criticidade']
 HDRS_PA  = ['Linha'] + HDRS_FAM
-WID_FAM  = [16, 42, 13, 14, 12, 14, 12, 12, 16]
+WID_FAM  = [16, 42, 13, 18, 12, 14, 12, 12, 16]
 WID_PA   = [18] + WID_FAM
 
 wb = Workbook()
@@ -133,7 +133,7 @@ for linha, grupo in pa.groupby('Linha', sort=True):
             r.get('Código do Produto',''),
             r.get('Produto',''),
             float(r.get('Estoque (UN)',0) or 0),
-            r.get('Lote',''),
+            r.get('Lote Indústria',''),
             r.get('Local',''),
             fmt_data(r.get('Data de Vencimento','')),
             (int(r['Dias p/ Vencer']) if pd.notna(r.get('Dias p/ Vencer')) else ''),
@@ -165,7 +165,7 @@ for short, sheet_name, fam_upper in familias:
             r.get('Código do Produto',''),
             r.get('Produto',''),
             float(r.get('Estoque (UN)',0) or 0),
-            r.get('Lote',''),
+            r.get('Lote Indústria',''),
             r.get('Local',''),
             fmt_data(r.get('Data de Vencimento','')),
             (int(r['Dias p/ Vencer']) if pd.notna(r.get('Dias p/ Vencer')) else ''),
