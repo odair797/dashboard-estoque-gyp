@@ -37,3 +37,6 @@ desktop.ini
 *.tmp
 *.bak
 *.log
+
+# Arquivos guardados (nao publicar)
+_ARQUIVO_nao_usar/
