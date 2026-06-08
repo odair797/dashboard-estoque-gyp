@@ -119,10 +119,10 @@ venc_por_familia = [{'familia':r['Familia_Clean'],'estoque':float(r['Estoque (UN
 # Produto Acabado (compilado por linha)
 pa_df = estoque[estoque['Familia']=='4 - Produto Acabado'].copy()
 # Considerar apenas estoque DISPONIVEL: excluir locais "em processo"
-# Setores "em processo"/indisponiveis: DOCA, PACKING, AVARIA/BLOQUEADOS, REPROVADO.
+# Setores "em processo"/indisponiveis: DOCA, PACKING, AVARIA/BLOQUEADOS, REPROVADO, PERDAS.
 # Esses PA nao contam no compilado nem no grafico por linha.
 _setor_pa = pa_df.get('Setor', pd.Series('', index=pa_df.index)).astype(str)
-_excluir = 'DOCA|PACKING|AVARIA|BLOQUEAD|REPROVAD'
+_excluir = 'DOCA|PACKING|AVARIA|BLOQUEAD|REPROVAD|PERDAS'
 pa_df = pa_df[~_setor_pa.str.contains(_excluir, case=False, na=False)].copy()
 pa_grp = pa_df.groupby(['Código do Produto','Produto','Linha']).agg(
     estoque=('Estoque (UN)','sum'),
