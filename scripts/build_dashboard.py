@@ -118,6 +118,12 @@ venc_por_familia = [{'familia':r['Familia_Clean'],'estoque':float(r['Estoque (UN
 
 # Produto Acabado (compilado por linha)
 pa_df = estoque[estoque['Familia']=='4 - Produto Acabado'].copy()
+# Considerar apenas estoque DISPONIVEL: excluir locais "em processo"
+# Setores "em processo"/indisponiveis: DOCA, PACKING, AVARIA/BLOQUEADOS, REPROVADO.
+# Esses PA nao contam no compilado nem no grafico por linha.
+_setor_pa = pa_df.get('Setor', pd.Series('', index=pa_df.index)).astype(str)
+_excluir = 'DOCA|PACKING|AVARIA|BLOQUEAD|REPROVAD'
+pa_df = pa_df[~_setor_pa.str.contains(_excluir, case=False, na=False)].copy()
 pa_grp = pa_df.groupby(['Código do Produto','Produto','Linha']).agg(
     estoque=('Estoque (UN)','sum'),
     menor_venc=('Data de Vencimento','min')
@@ -173,7 +179,7 @@ with open(HTML_PATH, 'rb') as f:
     _raw = f.read()
 # Remove bytes nulos que corrompem o JavaScript no navegador
 if b'\x00' in _raw:
-    print("  Aviso: bytes nulos encontrados no template — removendo...")
+    print("  Aviso: bytes nulos encontrados no template -- removendo...")
     _raw = _raw.replace(b'\x00', b'')
 html = _raw.decode('utf-8', errors='replace')
 
@@ -193,23 +199,23 @@ if n == 0:
     raise SystemExit(1)
 
 _ref = kpis['data_ref']
-# Badge "Ref." removido do layout \u2014 linha abaixo mantida apenas para "Refer\u00eancia: <span>" se existir
-new_html = re.sub(r'(Refer\u00eancia: <span>)[^<]*(</span>)', r'\g<1>' + _ref + r'\g<2>', new_html, count=1)
+# Badge "Ref." removido do layout -- linha abaixo mantida apenas para "Referencia: <span>" se existir
+new_html = re.sub(r'(Referência: <span>)[^<]*(</span>)', r'\g<1>' + _ref + r'\g<2>', new_html, count=1)
 def _milhar(n):
     return format(int(n), ',').replace(',', '.')
-_cont = _milhar(kpis['total_registros']) + ' registros \u00b7 ' + _milhar(kpis['total_skus']) + ' SKUs'
-new_html = re.sub(r'[\d.,]+ registros \u00b7 [\d.,]+ SKUs', _cont, new_html, count=1)
+_cont = _milhar(kpis['total_registros']) + ' registros · ' + _milhar(kpis['total_skus']) + ' SKUs'
+new_html = re.sub(r'[\d.,]+ registros · [\d.,]+ SKUs', _cont, new_html, count=1)
 
 # Atualiza o selo "NN SKUs - NN linhas" da aba Compilado PA
 _n_sku = len({x['sku'] for x in pa_list})
 _n_lin = len({x['linha'] for x in pa_list})
-new_html = re.sub(r'\d+\s*SKUs\s*\u00b7\s*\d+\s*linhas',
-                  str(_n_sku) + ' SKUs \u00b7 ' + str(_n_lin) + ' linhas',
+new_html = re.sub(r'\d+\s*SKUs\s*·\s*\d+\s*linhas',
+                  str(_n_sku) + ' SKUs · ' + str(_n_lin) + ' linhas',
                   new_html)
 
 # Garantir que as funções de exportação Excel estão presentes
 _EXPORT_JS = """
-// ========== FUNÇÕES DE EXPORTAÇÃO EXCEL ==========
+// ========== FUNCOES DE EXPORTACAO EXCEL ==========
 function _xlsxDownload(rows, filename) {
   var ws = XLSX.utils.json_to_sheet(rows);
   var wb = XLSX.utils.book_new();
@@ -282,11 +288,11 @@ if 'function exportarExcel' not in new_html:
 
 import tempfile as _tf, shutil as _sh
 _dir=os.path.dirname(HTML_PATH)
+_ok=False
 for _try in range(3):
     _fd,_tmpf=_tf.mkstemp(suffix='.html', dir=_dir)
     with os.fdopen(_fd,'w',encoding='utf-8') as f:
         f.write(new_html)
-    _ok=False
     with open(_tmpf,'r',encoding='utf-8') as f:
         _chk=f.read()
     if '</html>' in _chk and len(_chk)==len(new_html):
