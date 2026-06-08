@@ -76,6 +76,22 @@ for _rec in familia:
         'packing':   _ssum(_sub, 'PACKING'),
     }
 
+# Detalhamento dos indicadores operacionais por familia (subpaineis do Resumo)
+_fam_order = [r['familia'] for r in familia]
+_dias = estoque['Dias p/ Vencer']
+_masks = {
+    'critico': (_dias>=0) & (_dias<=60),
+    'atencao': (_dias>60) & (_dias<=120),
+    'ok':      (_dias>120) & (_dias<=183),
+    'vencidos':(_dias<0),
+}
+_sku_by_fam = estoque.groupby('Familia_Clean')['Código do Produto'].nunique().to_dict()
+fam_breakdown = {'skus': {f:int(_sku_by_fam.get(f,0)) for f in _fam_order}}
+for _key,_mask in _masks.items():
+    _c = estoque[_mask].groupby('Familia_Clean').size().to_dict()
+    fam_breakdown[_key] = {f:int(_c.get(f,0)) for f in _fam_order}
+kpis['fam_breakdown'] = fam_breakdown
+
 def unidade_fam(fam):
     return 'kg' if str(fam) == 'Matéria Prima' else 'un'
 
