@@ -75,6 +75,7 @@ for _rec in familia:
         'doca':      _ssum(_sub, 'DOCA'),
         'packing':   _ssum(_sub, 'PACKING'),
     }
+    _rec['dist']['disponivel'] = float(_rec['estoque']) - sum(_rec['dist'].values())
 
 # Detalhamento dos indicadores operacionais por familia (subpaineis do Resumo)
 _fam_order = [r['familia'] for r in familia]
