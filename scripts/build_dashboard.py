@@ -240,6 +240,7 @@ function exportarVencidos() {
 }
 function exportarSaldoCompleto() {
   var wb = XLSX.utils.book_new();
+  var _proc=function(s){return /DOCA|PACKING/i.test(s||'');};
   var familias = [
     {key:'Produto Acabado', nome:'Produto Acabado', comLinha:true},
     {key:'Matéria Prima',   nome:'Matéria Prima',   comLinha:false},
@@ -248,35 +249,32 @@ function exportarSaldoCompleto() {
     {key:'Apoio',           nome:'Apoio',            comLinha:false},
   ];
   familias.forEach(function(fam) {
-    var dados = DATA.saldo_completo.filter(function(r){ return r.familia === fam.key; });
+    var dados = DATA.saldo_completo.filter(function(r){ return r.familia === fam.key && !_proc(r.setor); });
     var rows = dados.map(function(r) {
       var meses = (r.dias !== null && r.dias !== undefined) ? Math.round(r.dias/30*10)/10 : '';
       if (fam.comLinha) {
         return {'Linha':r.linha,'SKU':r.sku,'Descrição':r.produto,
-                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,
+                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,'Setor':r.setor,
                 'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
                 'Meses a Vencer':meses,'Criticidade':r.urgencia};
       } else {
         return {'SKU':r.sku,'Descrição':r.produto,
-                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,
+                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,'Setor':r.setor,
                 'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
                 'Meses a Vencer':meses,'Criticidade':r.urgencia};
       }
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length?rows:[{}]), fam.nome);
   });
-  // Aba Em Processo: 00000348=Finalizado, 00004569/00000349=Em Separação
-  var emProcesso = DATA.saldo_completo.filter(function(r){
-    return r.local==='00000348'||r.local==='00004569'||r.local==='00000349';
-  }).map(function(r){
+  // Aba Em Processo: registros com Setor Doca/Packing; Família na 1a coluna
+  var emProcesso = DATA.saldo_completo.filter(function(r){ return _proc(r.setor); }).map(function(r){
     var meses=(r.dias!==null&&r.dias!==undefined)?Math.round(r.dias/30*10)/10:'';
-    return {'Status':r.local==='00000348'?'Finalizado':'Em Separação',
-            'Local':r.local,'SKU':r.sku,'Descrição':r.produto,'Família':r.familia,
-            'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,
+    return {'Família':r.familia,'SKU':r.sku,'Descrição':r.produto,
+            'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,'Setor':r.setor,
             'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
             'Meses a Vencer':meses,'Criticidade':r.urgencia};
   });
-  emProcesso.sort(function(a,b){return a.Status.localeCompare(b.Status);});
+  emProcesso.sort(function(a,b){return (a['Família']||'').localeCompare(b['Família']||'')||(''+a.SKU).localeCompare(''+b.SKU);});
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(emProcesso.length?emProcesso:[{}]), 'Em Processo');
   XLSX.writeFile(wb, 'Saldo_Completo_por_Familia.xlsx');
 }

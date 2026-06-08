@@ -80,12 +80,14 @@ def classificar_linha(nome):
 df['Linha'] = df.apply(lambda r: classificar_linha(r['Produto']) if r['Familia']=='4 - Produto Acabado' else '', axis=1)
 
 estoque = df[df['Estoque (UN)'] > 0].copy()
+if 'Setor' not in estoque.columns:
+    estoque['Setor'] = ''
 
 print("[2/3] Salvando intermediarios...")
 sku_col = 'Codigo do Produto' if 'Codigo do Produto' in estoque.columns else 'Código do Produto'
-cols_padrao_pa = ['Linha',sku_col,'Produto','Estoque (UN)','Lote','Local',
+cols_padrao_pa = ['Linha',sku_col,'Produto','Estoque (UN)','Lote','Local','Setor',
                   'Data de Vencimento','Dias p/ Vencer','Meses p/ Vencer','Criticidade']
-cols_padrao    = [sku_col,'Produto','Estoque (UN)','Lote','Local',
+cols_padrao    = [sku_col,'Produto','Estoque (UN)','Lote','Local','Setor',
                   'Data de Vencimento','Dias p/ Vencer','Meses p/ Vencer','Criticidade']
 
 pa = estoque[estoque['Familia']=='4 - Produto Acabado'][cols_padrao_pa].copy()
