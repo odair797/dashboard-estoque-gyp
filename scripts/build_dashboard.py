@@ -62,6 +62,20 @@ fam_grp = fam_grp.rename(columns={'Familia_Clean':'familia','Estoque (UN)':'esto
 fam_grp = fam_grp.sort_values('estoque', ascending=False)
 familia = fam_grp.to_dict('records')
 
+# Distribuicao do saldo por status operacional (por familia) -> subpaineis do Resumo
+def _ssum(sub, pat):
+    return float(sub[sub['Setor'].astype(str).str.contains(pat, case=False, na=False)]['Estoque (UN)'].sum())
+for _rec in familia:
+    _sub = estoque[estoque['Familia_Clean']==_rec['familia']]
+    _rec['dist'] = {
+        'avaria':    _ssum(_sub, 'AVARIA|BLOQUEAD'),
+        'vencido':   _ssum(_sub, 'VENCIDO'),
+        'reprovado': _ssum(_sub, 'REPROVAD'),
+        'perdas':    _ssum(_sub, 'PERDAS'),
+        'doca':      _ssum(_sub, 'DOCA'),
+        'packing':   _ssum(_sub, 'PACKING'),
+    }
+
 def unidade_fam(fam):
     return 'kg' if str(fam) == 'Matéria Prima' else 'un'
 
