@@ -86,6 +86,19 @@ def main():
             print("   (removido index.lock travado de execucao anterior)")
         except Exception as e:
             print("   [AVISO] nao foi possivel remover index.lock: " + str(e))
+    # Repara um index do git CORROMPIDO (ocorrencia conhecida neste repo):
+    # se git status falhar, apaga o index e reconstroi a partir do HEAD.
+    _chk = run(['git', 'status', '--porcelain'], capture_output=True)
+    if _chk.returncode != 0:
+        print("   (index do git corrompido - reconstruindo a partir do HEAD...)")
+        _idx = os.path.join(ROOT, '.git', 'index')
+        try:
+            if os.path.exists(_idx):
+                os.remove(_idx)
+        except Exception as e:
+            print("   [AVISO] nao foi possivel remover o index: " + str(e))
+        run(['git', 'read-tree', 'HEAD'], capture_output=True)
+        run(['git', 'reset', '-q'], capture_output=True)
     # Força inclusão do Excel mesmo que ainda esteja em cache do .gitignore
     xlsx = os.path.join(ROOT, 'output', 'Analise_Estoque_GYP.xlsx')
     if os.path.exists(xlsx):
