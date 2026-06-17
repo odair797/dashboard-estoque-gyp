@@ -269,6 +269,184 @@ if b2c.get('ok'):
 else:
     print('  [B2C] sem arquivo em input/b2c/ (subpainel ficara como aguardando).')
 
+
+# ====================== SALDO LISA (modulo) ======================
+# Le o saldo do sistema LISA (TXT largura fixa) de input/lisa/*.txt e
+# converte o codigo Bling -> codigo Senior pela planilha de conversao
+# (input/lisa/*.xlsx). Considera APENAS itens com SALDO DISPONIVEL > 0.
+# SKUs sem conversao viram "pendencias" para descoberta do codigo Senior.
+LISA_DIR = os.path.join(ROOT, 'input', 'lisa')
+
+def _fam_nome(sku):
+    return {'1':'Matéria Prima','2':'Embalagem','3':'Granel',
+            '4':'Produto Acabado','5':'Apoio'}.get(str(sku)[:1], 'Outros')
+
+def _lote_to_venc(lote, anos_vida=3, meses_critico=6):
+    """Lote LISA: LL DD MM AA PPP -> (fabricacao, vencimento, dias, criticidade).
+    Ex.: 01260428029 => seq=01 dia=26 mes=04 ano=28(2028) prod=029.
+    Vencimento = fabricacao + anos_vida; critico = dentro de meses_critico do venc."""
+    s = re.sub(r'\D', '', str(lote or ''))
+    if len(s) < 8:
+        return (None, None, None, None)
+    try:
+        dia = int(s[2:4]); mes = int(s[4:6]); ano = 2000 + int(s[6:8])
+        fab = datetime(ano, mes, dia)
+    except Exception:
+        return (None, None, None, None)
+    try:
+        venc = fab.replace(year=fab.year + anos_vida)
+    except ValueError:
+        venc = fab.replace(year=fab.year + anos_vida, day=28)
+    dias = (venc - TODAY).days
+    if dias < 0:                     crit = 'Vencido'
+    elif dias <= meses_critico * 30: crit = 'Crítico'
+    else:                            crit = 'OK'
+    return (fab, venc, dias, crit)
+
+def _build_lisa():
+    from collections import defaultdict
+    txts = _glob.glob(os.path.join(LISA_DIR, '*.txt'))
+    xlss = _glob.glob(os.path.join(LISA_DIR, '*.xlsx'))
+    if not txts or not xlss:
+        return {'ok': False}
+    txt_path = max(txts, key=os.path.getmtime)
+    xls_path = max(xlss, key=os.path.getmtime)
+
+    # --- mapa de conversao Bling -> (Senior, Produto) ---
+    try:
+        rawc = pd.read_excel(xls_path, header=None)
+    except Exception as e:
+        print('  [LISA] falha ao ler conversao: ' + str(e)); return {'ok': False}
+    hdr_idx = None
+    for i in range(min(12, len(rawc))):
+        vals = [str(v).strip().upper() for v in rawc.iloc[i].tolist()]
+        if 'COD BLING' in vals:
+            hdr_idx = i; break
+    if hdr_idx is None:
+        print('  [LISA] cabecalho COD BLING nao encontrado na conversao.'); return {'ok': False}
+    hrow = [str(v).strip().upper() for v in rawc.iloc[hdr_idx].tolist()]
+    ci_bling  = hrow.index('COD BLING')
+    ci_senior = hrow.index('COD SÊNIOR') if 'COD SÊNIOR' in hrow else (hrow.index('COD SENIOR') if 'COD SENIOR' in hrow else None)
+    ci_prod   = hrow.index('PRODUTO') if 'PRODUTO' in hrow else None
+    def _norm(s): return re.sub(r'\s+', '', str(s)).upper()
+    cmap = {}
+    for _, r in rawc.iloc[hdr_idx+1:].iterrows():
+        b = r.iloc[ci_bling]
+        if pd.isna(b): continue
+        bn = _norm(b)
+        if not bn or bn == 'CODBLING': continue
+        sen = r.iloc[ci_senior] if ci_senior is not None else None
+        if pd.isna(sen): continue
+        sen = str(sen).split('.')[0].strip()
+        prod = str(r.iloc[ci_prod]).strip() if (ci_prod is not None and pd.notna(r.iloc[ci_prod])) else ''
+        cmap[bn] = (sen, prod)
+
+    # --- mapa Senior -> (linha, produto) a partir da base GYP ---
+    sen_linha, sen_prod = {}, {}
+    try:
+        for _, br in estoque[['Código do Produto', 'Linha', 'Produto']].iterrows():
+            k = str(br['Código do Produto']).split('.')[0]
+            if k and k not in sen_linha:
+                sen_linha[k] = str(br['Linha']) if pd.notna(br['Linha']) and str(br['Linha']).strip() else ''
+                sen_prod[k]  = str(br['Produto'])
+    except Exception:
+        pass
+
+    # --- parse LISA (largura fixa) ---
+    raw = open(txt_path, encoding='latin-1', errors='replace').read().splitlines()
+    if not raw: return {'ok': False}
+    cut = lambda ln, a, b: ln[a:b].strip()
+    items = []
+    for ln in raw[1:]:
+        if not ln.strip(): continue
+        cod = cut(ln, 0, 31)
+        if not cod: continue
+        ds = cut(ln, 84, 111).replace('.', '').replace(',', '.')
+        try: disp = float(ds)
+        except: disp = 0.0
+        if disp <= 0: continue   # APENAS disponivel
+        items.append({'bling': cod, 'desc': cut(ln, 31, 84),
+                      'disp': disp, 'armazem': cut(ln, 131, 149)})
+    if not items:
+        return {'ok': False}
+
+    # --- conversao + agregacao por SKU Senior ---
+    agg  = defaultdict(lambda: {'estoque': 0.0, 'blings': set(), 'armazens': set(), 'desc': ''})
+    pend = defaultdict(lambda: {'estoque': 0.0, 'desc': '', 'armazens': set()})
+    conv_blings = set()
+    for it in items:
+        bn = _norm(it['bling'])
+        conv = cmap.get(bn)
+        if conv:
+            sen, prodc = conv
+            conv_blings.add(bn)
+            a = agg[sen]
+            a['estoque'] += it['disp']
+            a['blings'].add(it['bling'])
+            if it['armazem']: a['armazens'].add(it['armazem'])
+            if not a['desc']: a['desc'] = prodc or sen_prod.get(sen, '') or it['desc']
+        else:
+            p = pend[it['bling']]
+            p['estoque'] += it['disp']
+            if not p['desc']: p['desc'] = it['desc']
+            if it['armazem']: p['armazens'].add(it['armazem'])
+
+    compilado = []
+    for sen, a in agg.items():
+        linha = sen_linha.get(sen, '') or ''
+        compilado.append({
+            'senior': sen,
+            'produto': a['desc'] or sen_prod.get(sen, ''),
+            'bling': ', '.join(sorted(a['blings'])),
+            'familia': _fam_nome(sen),
+            'linha': linha if linha else '—',
+            'estoque': round(a['estoque'], 0),
+            'armazens': ', '.join(sorted(a['armazens'])),
+        })
+    compilado.sort(key=lambda x: x['estoque'], reverse=True)
+
+    pendencias = [{
+        'bling': b, 'descricao': p['desc'], 'estoque': round(p['estoque'], 0),
+        'armazem': ', '.join(sorted(p['armazens'])),
+    } for b, p in pend.items()]
+    pendencias.sort(key=lambda x: x['estoque'], reverse=True)
+
+    fam_t = defaultdict(float); lin_t = defaultdict(float)
+    for c in compilado:
+        fam_t[c['familia']] += c['estoque']
+        lin_t[c['linha'] if c['linha'] != '—' else 'OUTROS'] += c['estoque']
+    familia      = sorted([{'familia': k, 'estoque': v} for k, v in fam_t.items()], key=lambda x: x['estoque'], reverse=True)
+    linha_totais = sorted([{'linha': k, 'total': v} for k, v in lin_t.items()], key=lambda x: x['total'], reverse=True)
+
+    return {
+        'ok': True,
+        'arquivo': os.path.basename(txt_path),
+        'conversao_arquivo': os.path.basename(xls_path),
+        'data_ref': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'kpis': {
+            'registros': len(items),
+            'skus_bling': len({_norm(i['bling']) for i in items}),
+            'skus_senior': len(agg),
+            'estoque': round(sum(a['estoque'] for a in agg.values()), 0),
+            'convertidos': len(conv_blings),
+            'pendentes': len(pend),
+            'estoque_pendente': round(sum(p['estoque'] for p in pend.values()), 0),
+        },
+        'familia': familia,
+        'linha_totais': linha_totais,
+        'compilado': compilado,
+        'pendencias': pendencias,
+    }
+
+lisa = _build_lisa()
+if lisa.get('ok'):
+    print('  [LISA] ' + str(lisa['kpis']['skus_senior']) + ' SKUs Senior | ' +
+          str(lisa['kpis']['pendentes']) + ' pendencias | ' +
+          format(int(lisa['kpis']['estoque']), ',') + ' un disp.')
+else:
+    print('  [LISA] sem arquivo em input/lisa/ (painel ficara como aguardando).')
+
+
 DATA = {
     'kpis': kpis,
     'familia': familia,
@@ -280,6 +458,7 @@ DATA = {
     'linha_totais': linha_totais,
     'saldo_completo': saldo_completo,
     'b2c': b2c,
+    'lisa': lisa,
 }
 
 data_str = json.dumps(DATA, ensure_ascii=False, separators=(',',':'))
