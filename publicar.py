@@ -77,6 +77,15 @@ def main():
         run(['git', 'remote', 'set-url', 'origin', repo_url], capture_output=True)
 
     print(" Enviando para o GitHub...")
+    # Remove um index.lock TRAVADO de uma execucao anterior que crashou.
+    # Sem isso, todo 'git add/commit' falha em silencio e nada e publicado.
+    lock = os.path.join(ROOT, '.git', 'index.lock')
+    if os.path.exists(lock):
+        try:
+            os.remove(lock)
+            print("   (removido index.lock travado de execucao anterior)")
+        except Exception as e:
+            print("   [AVISO] nao foi possivel remover index.lock: " + str(e))
     # Força inclusão do Excel mesmo que ainda esteja em cache do .gitignore
     xlsx = os.path.join(ROOT, 'output', 'Analise_Estoque_GYP.xlsx')
     if os.path.exists(xlsx):
@@ -84,7 +93,12 @@ def main():
     run(['git', 'add', '-A'], capture_output=True)
     st = run(['git', 'status', '--porcelain'], capture_output=True)
     if (st.stdout or '').strip():
-        run(['git', 'commit', '-m', 'Atualizacao dashboard'], capture_output=True)
+        c = run(['git', 'commit', '-m', 'Atualizacao dashboard'], capture_output=True)
+        if c.returncode != 0:
+            print()
+            print(" [ERRO] Falha no commit:")
+            print((c.stderr or c.stdout or '')[:600])
+            sys.exit(1)
         print("   Commit criado.")
     else:
         print("   Nada novo para commitar.")
