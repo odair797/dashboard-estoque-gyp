@@ -190,6 +190,85 @@ saldo_completo = [{
                  else ('Vencido' if pd.notna(r['Dias p/ Vencer']) else 'Longa Validade')),
 } for _, r in estoque.iterrows()]
 
+# ====================== SALDO B2C (subpainel) ======================
+# Le o saldo de estoque da B2C (export do Senior) de input/b2c/*.tsv|*.txt
+# e gera KPIs + compilado por SKU. Arquivo separado para nao se misturar
+# com o saldo principal (GYP/Senior).
+import glob as _glob
+B2C_DIR = os.path.join(ROOT, 'input', 'b2c')
+def _build_b2c():
+    files = _glob.glob(os.path.join(B2C_DIR, '*.tsv')) + _glob.glob(os.path.join(B2C_DIR, '*.txt'))
+    if not files:
+        return {'ok': False}
+    path = max(files, key=os.path.getmtime)
+    try:
+        b = pd.read_csv(path, sep='\t', low_memory=False, encoding='utf-8-sig')
+    except Exception as e:
+        print('  [B2C] falha ao ler arquivo: ' + str(e))
+        return {'ok': False}
+    sku_c = 'Código do Produto' if 'Código do Produto' in b.columns else (
+            'Codigo do Produto' if 'Codigo do Produto' in b.columns else None)
+    if sku_c is None or 'Produto' not in b.columns:
+        print('  [B2C] colunas obrigatorias ausentes (SKU/Produto).')
+        return {'ok': False}
+    b['__venc'] = pd.to_datetime(b.get('Data de Vencimento'), errors='coerce', dayfirst=True)
+    b['__est']  = pd.to_numeric(b.get('Estoque (UN)', b.get('Estoque', 0)), errors='coerce').fillna(0)
+    b = b[b['__est'] > 0].copy()
+    if b.empty:
+        return {'ok': False}
+    b['__dias'] = (b['__venc'] - TODAY).dt.days
+    b['__lote'] = b.get('Lote', '').astype(str)
+    b['__local'] = b.get('Local', '').astype(str)
+
+    def _crit(d):
+        if pd.isna(d):   return 'Sem data'
+        if d < 0:        return 'Vencido'
+        if d <= 60:      return 'Crítico'
+        if d <= 120:     return 'Atenção'
+        return 'OK'
+
+    grp = b.groupby([sku_c, 'Produto']).agg(
+        estoque=('__est', 'sum'),
+        lotes=('__lote', 'nunique'),
+        locais=('__local', 'nunique'),
+        menor_venc=('__venc', 'min'),
+        menor_dias=('__dias', 'min'),
+    ).reset_index().sort_values(sku_c, ascending=True, key=lambda c: c.astype(str))
+
+    compilado = [{
+        'sku': str(r[sku_c]),
+        'produto': str(r['Produto']),
+        'estoque': float(r['estoque']),
+        'lotes': int(r['lotes']),
+        'locais': int(r['locais']),
+        'menor_venc': r['menor_venc'].strftime('%d/%m/%Y') if pd.notna(r['menor_venc']) else '-',
+        'dias': int(r['menor_dias']) if pd.notna(r['menor_dias']) else None,
+        'criticidade': _crit(r['menor_dias']),
+    } for _, r in grp.iterrows()]
+
+    _d = b['__dias']
+    return {
+        'ok': True,
+        'arquivo': os.path.basename(path),
+        'data_ref': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'kpis': {
+            'registros': int(len(b)),
+            'skus': int(b[sku_c].nunique()),
+            'estoque': float(b['__est'].sum()),
+            'proximos': int(((_d >= 0) & (_d <= 183)).sum()),
+            'critico': int(((_d >= 0) & (_d <= 60)).sum()),
+            'vencidos': int((_d < 0).sum()),
+        },
+        'compilado': compilado,
+    }
+
+b2c = _build_b2c()
+if b2c.get('ok'):
+    print('  [B2C] ' + str(b2c['kpis']['skus']) + ' SKUs | ' +
+          format(int(b2c['kpis']['estoque']), ',') + ' un | arquivo: ' + b2c['arquivo'])
+else:
+    print('  [B2C] sem arquivo em input/b2c/ (subpainel ficara como aguardando).')
+
 DATA = {
     'kpis': kpis,
     'familia': familia,
@@ -200,6 +279,7 @@ DATA = {
     'pa_list': pa_list,
     'linha_totais': linha_totais,
     'saldo_completo': saldo_completo,
+    'b2c': b2c,
 }
 
 data_str = json.dumps(DATA, ensure_ascii=False, separators=(',',':'))
