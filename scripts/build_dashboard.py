@@ -418,6 +418,25 @@ def _build_lisa():
     familia      = sorted([{'familia': k, 'estoque': v} for k, v in fam_t.items()], key=lambda x: x['estoque'], reverse=True)
     linha_totais = sorted([{'linha': k, 'total': v} for k, v in lin_t.items()], key=lambda x: x['total'], reverse=True)
 
+    # --- vencimento por lote (acende quando o export trouxer o campo Lote) ---
+    tem_lote = any(it.get('lote') for it in items)
+    prox, vencidos = [], []
+    if tem_lote:
+        for it in items:
+            conv = cmap.get(_norm(it['bling']))
+            if not conv: continue
+            sen, prodc = conv
+            fab, venc, dias, crit = _lote_to_venc(it.get('lote'))
+            if venc is None: continue
+            rec = {'senior': sen, 'produto': prodc or sen_prod.get(sen,'') or it['desc'],
+                   'familia': _fam_nome(sen), 'linha': sen_linha.get(sen,'') or '—',
+                   'lote': it.get('lote'), 'estoque': round(it['disp'],0),
+                   'vencimento': venc.strftime('%d/%m/%Y'), 'dias': dias, 'criticidade': crit}
+            if dias is not None and dias < 0: vencidos.append(rec)
+            elif dias is not None and dias <= 183: prox.append(rec)
+        prox.sort(key=lambda x: (x['dias'] if x['dias'] is not None else 99999))
+        vencidos.sort(key=lambda x: (x['dias'] if x['dias'] is not None else 0))
+
     return {
         'ok': True,
         'arquivo': os.path.basename(txt_path),
@@ -436,6 +455,9 @@ def _build_lisa():
         'linha_totais': linha_totais,
         'compilado': compilado,
         'pendencias': pendencias,
+        'prox': prox,
+        'vencidos': vencidos,
+        'tem_lote': tem_lote,
     }
 
 lisa = _build_lisa()
