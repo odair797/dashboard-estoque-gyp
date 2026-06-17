@@ -171,6 +171,7 @@ pa_list = [{
 lt_df = pa_grp.groupby('Linha')['estoque'].sum().reset_index()
 lt_df = lt_df.sort_values('estoque', ascending=False)
 linha_totais = [{'linha': str(r['Linha']) if str(r['Linha']) else 'OUTROS', 'total': float(r['estoque'])} for _, r in lt_df.iterrows()]
+GYP_LINHAS = [x['linha'] for x in linha_totais]
 
 # Saldo Completo
 saldo_completo = [{
@@ -303,6 +304,29 @@ def _lote_to_venc(lote, anos_vida=3, meses_critico=6):
     else:                            crit = 'OK'
     return (fab, venc, dias, crit)
 
+def _linha_por_nome(nome, canon):
+    """Deriva a Linha comercial pelo nome do produto (LISA nao traz linha).
+    Usa a lista oficial de linhas do GYP (canon) + apelidos conhecidos."""
+    n = str(nome or '').lower()
+    cset = set(canon)
+    alias = [
+        ('ELIXIR DO PANTANAL', ['pantanal']),
+        ('ELIXIR DO CERRADO',  ['cerrado']),
+        ('ELIXIR DA FLORESTA', ['floresta', 'forest']),
+        ('YBERA FASHION KIDS', ['fashion kids', 'kids menino', 'kids menina', 'kit kids']),
+        ('POS-PROGRESSIVA',    ['pos-progressiva', 'p\u00f3s-progressiva', 'ph control']),
+        ("LIFES FLOWER",       ["life's flower", 'lifes flower', "life`s flower"]),
+    ]
+    for ln, kws in alias:
+        if ln in cset and any(kw in n for kw in kws):
+            return ln
+    if n.strip().startswith('kit') and 'KITS' in cset:
+        return 'KITS'
+    for c in sorted(cset, key=len, reverse=True):
+        if c and c.lower() in n:
+            return c
+    return ''
+
 def _build_lisa():
     from collections import defaultdict
     txts = _glob.glob(os.path.join(LISA_DIR, '*.txt'))
@@ -393,7 +417,8 @@ def _build_lisa():
 
     compilado = []
     for sen, a in agg.items():
-        linha = sen_linha.get(sen, '') or ''
+        _canon = GYP_LINHAS
+        linha = sen_linha.get(sen, '') or _linha_por_nome(a['desc'] or sen_prod.get(sen, ''), _canon)
         compilado.append({
             'senior': sen,
             'produto': a['desc'] or sen_prod.get(sen, ''),
