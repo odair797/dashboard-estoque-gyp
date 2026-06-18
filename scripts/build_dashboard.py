@@ -304,6 +304,38 @@ def _lote_to_venc(lote, anos_vida=3, meses_critico=6):
     else:                            crit = 'OK'
     return (fab, venc, dias, crit)
 
+_MEDIDA_RE = re.compile(r"\s*\d+([.,]\d+)?\s*(ML|L|KG|GR|G|UN)\b\.?", re.IGNORECASE)
+
+def _strip_medida(nome):
+    """Remove a medida/volume do fim do nome (300ML, 250G, 1L...) e simbolos."""
+    s = str(nome or "")
+    s = _MEDIDA_RE.sub(" ", s)
+    s = s.replace("\u00ae", "").replace("\u00a9", "")
+    s = re.sub(r"\s*-\s*$", "", s)
+    s = re.sub(r"\s+", " ", s).strip(" -.")
+    return s.upper().strip()
+
+def _categoria_produto(nome):
+    """Agrupa produtos sem linha pela categoria (1a palavra-tipo), igual pedido:
+    'Leave-in 300ML' -> LEAVE-IN ; 'Mascara X 250G' -> MASCARAS. Usa startswith
+    para so agrupar quando o tipo lidera o nome (marcas ja resolveram antes)."""
+    n = str(nome or "").strip().lower()
+    cats = [
+        ("M\u00c1SCARAS",        ["m\u00e1scara", "mascara"]),
+        ("LEAVE-IN",         ["leave-in", "leave in"]),
+        ("SHAMPOOS",         ["shampoo"]),
+        ("CONDICIONADORES",  ["condicionador"]),
+        ("\u00d3LEOS",           ["\u00f3leo", "oleo"]),
+        ("CREMES",           ["creme"]),
+        ("S\u00c9RUNS",          ["s\u00e9rum", "serum"]),
+        ("SPRAYS",           ["spray"]),
+        ("T\u00d4NICOS",         ["t\u00f4nico", "tonico"]),
+    ]
+    for lab, kws in cats:
+        if any(n.startswith(kw) for kw in kws):
+            return lab
+    return ""
+
 def _linha_por_nome(nome, canon):
     """Deriva a Linha comercial pelo nome do produto (LISA nao traz linha).
     Usa a lista oficial de linhas do GYP (canon) + apelidos conhecidos."""
@@ -325,7 +357,19 @@ def _linha_por_nome(nome, canon):
     for c in sorted(cset, key=len, reverse=True):
         if c and c.lower() in n:
             return c
-    return ''
+    # Fallback baseado nas linhas da GYP (classificar_linha em processar_estoque.py):
+    # 1) prefixo antes de ' - '  2) KIT->KITS
+    # 3) agrupa produtos sem prefixo por categoria (MASCARAS, SHAMPOOS, LEAVE-IN...)
+    # 4) senao, nome sem a medida. Assim nada fica em OUTROS.
+    raw = str(nome or '').strip()
+    if ' - ' in raw:
+        return raw.split(' - ', 1)[0].upper().strip()
+    if 'KIT' in raw.upper():
+        return 'KITS'
+    cat = _categoria_produto(raw)
+    if cat:
+        return cat
+    return _strip_medida(raw)
 
 def _build_lisa():
     from collections import defaultdict
@@ -418,7 +462,11 @@ def _build_lisa():
     compilado = []
     for sen, a in agg.items():
         _canon = GYP_LINHAS
-        linha = sen_linha.get(sen, '') or _linha_por_nome(a['desc'] or sen_prod.get(sen, ''), _canon)
+        # Linha so para Produto Acabado (codigo inicia em 4), igual a GYP.
+        if str(sen).startswith('4'):
+            linha = sen_linha.get(sen, '') or _linha_por_nome(a['desc'] or sen_prod.get(sen, ''), _canon)
+        else:
+            linha = sen_linha.get(sen, '')
         compilado.append({
             'senior': sen,
             'produto': a['desc'] or sen_prod.get(sen, ''),
