@@ -107,11 +107,11 @@ def write_row(ws, row, headers, valores):
             c.font = Font(name='Calibri', size=9, bold=True, color=fg)
 
 # ── HEADERS PADRÃO ────────────────────────────────────────────────
-HDRS_FAM  = ['SKU','Descrição','Quantidade','Lote Indústria','Local','Setor',
+HDRS_FAM  = ['SKU','Descrição','Quantidade','Lote Indústria','Data de Fabricação','Local','Setor',
              'Data de Vencimento','Dias a Vencer','Meses a Vencer','Criticidade']
 HDRS_PA   = ['Linha'] + HDRS_FAM
 HDRS_PROC = ['Família'] + HDRS_FAM
-WID_FAM   = [16, 42, 13, 18, 12, 26, 14, 12, 12, 16]
+WID_FAM   = [16, 42, 13, 18, 16, 12, 26, 14, 12, 12, 16]
 WID_PA    = [18] + WID_FAM
 WID_PROC  = [20] + WID_FAM
 
@@ -122,6 +122,7 @@ def rec_padrao(r):
         r.get('Produto',''),
         float(r.get('Estoque (UN)',0) or 0),
         r.get('Lote Indústria',''),
+        fmt_data(r.get('Data de Fabricação','')),
         r.get('Local',''),
         r.get('Setor',''),
         fmt_data(r.get('Data de Vencimento','')),

@@ -26,6 +26,12 @@ if not os.path.exists(HTML_PATH):
 print("Carregando CSVs intermediarios...")
 estoque = pd.read_csv(os.path.join(TMP,'estoque_completo.csv'))
 estoque['Data de Vencimento'] = pd.to_datetime(estoque['Data de Vencimento'], errors='coerce')
+if 'Data de Fabricação' not in estoque.columns:
+    estoque['Data de Fabricação'] = pd.NaT
+estoque['Data de Fabricação'] = pd.to_datetime(estoque['Data de Fabricação'], errors='coerce', dayfirst=True)
+def _fab(r):
+    v = r.get('Data de Fabricação')
+    return v.strftime('%d/%m/%Y') if pd.notna(v) else ''
 
 TODAY = datetime.today().replace(hour=0,minute=0,second=0,microsecond=0)
 
@@ -113,6 +119,7 @@ prox_tab = [{
     'unidade': unidade_fam(fam_clean(r['Familia'])),
     'lote': str(r.get('Lote','')),
     'lote_ind': str(r.get('Lote Indústria','')),
+    'fabricacao': _fab(r),
     'estoque': float(r['Estoque (UN)']),
     'vencimento': r['Data de Vencimento'].strftime('%d/%m/%Y') if pd.notna(r['Data de Vencimento']) else '',
     'dias': int(r['Dias p/ Vencer']) if pd.notna(r['Dias p/ Vencer']) else None,
@@ -138,6 +145,8 @@ venc_fora = [{
     'linha': str(r.get('Linha','')),
     'setor': str(r.get('Setor','')),
     'lote': str(r.get('Lote','')),
+    'lote_ind': str(r.get('Lote Indústria','')),
+    'fabricacao': _fab(r),
     'estoque': float(r['Estoque (UN)']),
     'vencimento': r['Data de Vencimento'].strftime('%d/%m/%Y') if pd.notna(r['Data de Vencimento']) else '',
     'dias': int(r['Dias p/ Vencer']) if pd.notna(r['Dias p/ Vencer']) else None,
@@ -184,6 +193,7 @@ saldo_completo = [{
     'setor': str(r.get('Setor','')),
     'lote': str(r.get('Lote','')),
     'lote_ind': str(r.get('Lote Indústria','')),
+    'fabricacao': _fab(r),
     'estoque': float(r['Estoque (UN)']),
     'vencimento': r['Data de Vencimento'].strftime('%d/%m/%Y') if pd.notna(r['Data de Vencimento']) else '',
     'dias': int(r['Dias p/ Vencer']) if pd.notna(r['Dias p/ Vencer']) else None,
@@ -611,7 +621,7 @@ function _xlsxDownload(rows, filename) {
 function exportarExcel() {
   var rows = DATA.prox_tab.map(function(r) {
     return {'Local':r.local,'SKU':r.sku,'Produto':r.produto,'Família':r.familia,
-            'Lote':r.lote,'Lote Indústria':r.lote_ind,'Estoque':r.estoque,
+            'Lote':r.lote,'Lote Indústria':r.lote_ind,'Data de Fabricação':r.fabricacao,'Estoque':r.estoque,
             'Vencimento':r.vencimento,'Dias p/ Vencer':r.dias,'Urgência':r.urgencia};
   });
   _xlsxDownload(rows, 'Proximos_Vencer.xlsx');
@@ -619,7 +629,7 @@ function exportarExcel() {
 function exportarVencidos() {
   var rows = DATA.venc_fora.map(function(r) {
     return {'Local':r.local,'SKU':r.sku,'Produto':r.produto,'Família':r.familia,
-            'Setor Atual':r.setor,'Lote':r.lote,'Estoque':r.estoque,
+            'Setor Atual':r.setor,'Lote':r.lote,'Lote Indústria':r.lote_ind,'Data de Fabricação':r.fabricacao,'Estoque':r.estoque,
             'Vencimento':r.vencimento,'Dias Vencido':Math.abs(r.dias||0)};
   });
   _xlsxDownload(rows, 'Vencidos_Mover.xlsx');
@@ -640,12 +650,12 @@ function exportarSaldoCompleto() {
       var meses = (r.dias !== null && r.dias !== undefined) ? Math.round(r.dias/30*10)/10 : '';
       if (fam.comLinha) {
         return {'Linha':r.linha,'SKU':r.sku,'Descrição':r.produto,
-                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,'Setor':r.setor,
+                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Data de Fabricação':r.fabricacao,'Local':r.local,'Setor':r.setor,
                 'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
                 'Meses a Vencer':meses,'Criticidade':r.urgencia};
       } else {
         return {'SKU':r.sku,'Descrição':r.produto,
-                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,'Setor':r.setor,
+                'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Data de Fabricação':r.fabricacao,'Local':r.local,'Setor':r.setor,
                 'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
                 'Meses a Vencer':meses,'Criticidade':r.urgencia};
       }
@@ -656,7 +666,7 @@ function exportarSaldoCompleto() {
   var emProcesso = DATA.saldo_completo.filter(function(r){ return _proc(r.setor); }).map(function(r){
     var meses=(r.dias!==null&&r.dias!==undefined)?Math.round(r.dias/30*10)/10:'';
     return {'Família':r.familia,'SKU':r.sku,'Descrição':r.produto,
-            'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Local':r.local,'Setor':r.setor,
+            'Quantidade':r.estoque,'Lote Indústria':r.lote_ind,'Data de Fabricação':r.fabricacao,'Local':r.local,'Setor':r.setor,
             'Data de Vencimento':r.vencimento,'Dias a Vencer':r.dias,
             'Meses a Vencer':meses,'Criticidade':r.urgencia};
   });
@@ -665,10 +675,17 @@ function exportarSaldoCompleto() {
   XLSX.writeFile(wb, 'Saldo_Completo_por_Familia.xlsx');
 }
 """
-if 'function exportarExcel' not in new_html:
-    _ins = new_html.rfind('</script>')
-    if _ins >= 0:
-        new_html = new_html[:_ins] + _EXPORT_JS + new_html[_ins:]
+# Remover bloco de export anterior (se houver) e reinserir a versao atual,
+# garantindo que correcoes nas funcoes de export sempre se propaguem ao HTML.
+_marker = '// ========== FUNCOES DE EXPORTACAO EXCEL =========='
+if _marker in new_html:
+    _start = new_html.find(_marker)
+    _end = new_html.find('</script>', _start)
+    if _end >= 0:
+        new_html = new_html[:_start] + new_html[_end:]
+_ins = new_html.rfind('</script>')
+if _ins >= 0:
+    new_html = new_html[:_ins] + _EXPORT_JS + new_html[_ins:]
 
 import tempfile as _tf, shutil as _sh
 _dir=os.path.dirname(HTML_PATH)
