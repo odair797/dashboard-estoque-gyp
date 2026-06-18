@@ -466,7 +466,8 @@ def _build_lisa():
         if str(sen).startswith('4'):
             linha = sen_linha.get(sen, '') or _linha_por_nome(a['desc'] or sen_prod.get(sen, ''), _canon)
         else:
-            linha = sen_linha.get(sen, '')
+            # Nao-PA (Apoio/acessorios): linha unica em vez de OUTROS.
+            linha = sen_linha.get(sen, '') or 'ACESSÓRIOS / APOIO'
         compilado.append({
             'senior': sen,
             'produto': a['desc'] or sen_prod.get(sen, ''),
