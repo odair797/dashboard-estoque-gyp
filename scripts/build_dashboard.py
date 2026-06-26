@@ -284,7 +284,7 @@ else:
 # ====================== SALDO LISA (modulo) ======================
 # Le o saldo do sistema LISA (TXT largura fixa) de input/lisa/*.txt e
 # converte o codigo Bling -> codigo Senior pela planilha de conversao
-# (input/lisa/*.xlsx). Considera APENAS itens com SALDO DISPONIVEL > 0.
+# (input/lisa/*.xlsx). Considera APENAS itens com SALDO DISPONIVEL > 0 e ARMAZEM = 60.
 # SKUs sem conversao viram "pendencias" para descoberta do codigo Senior.
 LISA_DIR = os.path.join(ROOT, 'input', 'lisa')
 
@@ -443,8 +443,10 @@ def _build_lisa():
         try: disp = float(ds)
         except: disp = 0.0
         if disp <= 0: continue   # APENAS disponivel
+        arm = cut(ln, 131, 149)
+        if arm != '60': continue   # APENAS armazem 60
         items.append({'bling': cod, 'desc': cut(ln, 31, 84),
-                      'disp': disp, 'armazem': cut(ln, 131, 149)})
+                      'disp': disp, 'armazem': arm})
     if not items:
         return {'ok': False}
 
